@@ -319,15 +319,14 @@ def get_fsdp_wrap_policy_and_checkpointing(configs):
     from transformers.models.paligemma.modeling_paligemma import PaliGemmaMultiModalProjector
     from transformers.models.siglip.modeling_siglip import SiglipEncoderLayer, SiglipVisionTransformer
     
+    from vitra.models.action_model import DiT
     from vitra.utils.nn_utils import MLPProjector
     
     # Define which module types should be wrapped by FSDP
     policy = {
         SiglipEncoderLayer,  # Vision encoder layers
         SiglipVisionTransformer,  # Vision transformer
-        # Keep the action DiT in the outer VLA FSDP unit.  Wrapping it as a
-        # sibling FSDP unit makes the VLM hidden-state -> DiT autograd edge
-        # fail on H20 with torch 2.3 (SIGFPE in the first DiT MLP).
+        DiT,  # Diffusion Transformer for action model
         Gemma2DecoderLayer,  # Language model decoder layers
         PaliGemmaMultiModalProjector,  # Vision-language projection layer
         MLPProjector  # MLP projection layers

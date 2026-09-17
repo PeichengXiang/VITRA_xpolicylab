@@ -504,7 +504,7 @@ class VLAFSDPStrategy(TrainingStrategy):
                     current_state = batch["current_state"]
                     fov = batch["fov"]
 
-                    prediction = self.vla.forward(
+                    prediction = self.vla(
                         rgb,
                         input_ids,
                         attention_mask=attention_mask,
