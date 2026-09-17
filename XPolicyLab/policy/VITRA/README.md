@@ -15,6 +15,15 @@ Invoke XPolicyLab with `action_type=ee`. At the XPolicyLab boundary every action
 
 Inside VITRA, each hand uses an absolute camera-frame current wrist pose and absolute hand state. Its predicted wrist action is a one-step translation/rotation delta, while its hand-joint prediction is the next absolute target. The shared Spark0 bridge accumulates the wrist deltas and converts the resulting poses back to XPolicyLab's environment frame. Rotation uses matrix composition (`R_next = R_delta @ R_current`), not Euler-angle subtraction/addition.
 
+For EgoVLA `inspire12`, robot fine-tuning follows the hybrid contract used by
+VITRA's robot path: the wrist label is the realized transition from recorded
+`EEF[t]` to recorded `EEF[t+1]`, and the hand label is the direct future
+execution command in `action[t]`. Controller `target_ee_pose` fields do not
+define wrist labels. The final row of every episode is masked because it has no
+recorded `EEF[t+1]`. The manifest and statistics both record
+`egovla_observed_ee_step_future_hand_command_v3`, and training refuses older or
+mismatched EgoVLA statistics.
+
 The Spark0 HDF5 EE pose is the environment-frame pose of `Link7_L`/`Link7_R`, not the physical hand wrist. The 20 hand values are absolute Wuji Hand2 revolute-joint coordinates in radians, in the dataset's Isaac stage-major order: `[index,middle,pinky,ring,thumb]` for flex, then abduction, PIP/thumb-MCP, and DIP/thumb-IP.
 
 Two data representations are supported. `wuji20` is the legacy 52-D bridge and retains the sparse, uncalibrated 20-to-MANO45 injection in `mapping_wuji20_mano45.json`. `mano45` consumes the dense MANO labels produced by Spark-0 `add_mano.py`: each hand has camera-frame root pose plus 15 local MANO rotations. At runtime it runs the same Wuji FK/MANO fitter for observations and uses an explicitly selected inverse for actions; it does not use the sparse mapping or old Wuji statistics. Historical checkpoints default to the bounded geometric inverse. An optional hash-locked, side-specific affine inverse maps MANO local rotvec45 (encoded as per-joint XYZ Euler angles) directly to Wuji q20 in stage-major order. Its accepted output is never IK-refined; a safety rejection retries the historical geometric inverse, and only failure of that fallback holds both hands at the last complete safe Link7/q command for the remainder of the chunk.
@@ -47,6 +56,15 @@ bash process_data.sh spark0_bench_mano cotrain tianji_marvin_wuji ee
 ```
 
 The MANO statistics are per hand state61/action51 and are not interchangeable with the legacy Wuji state26/action26 statistics.
+
+From the workspace root (the directory containing `XPolicyLab/` and
+`data_scripts/`), prepare the EgoVLA H1 Inspire12 view and its matching
+statistics with:
+
+```bash
+bash data_scripts/prepare_egovla_inspire12_robot_command_v3.sh \
+  /absolute/path/to/EgoVLA_raw_remove_deprecated
+```
 
 Images are decoded only by the offline converter/loader and remain RGB. During evaluation, XPolicyLab's policy server supplies already-decoded RGB arrays; `model.py` deliberately rejects encoded bytes rather than decoding them again.
 

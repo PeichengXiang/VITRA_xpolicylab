@@ -20,6 +20,7 @@ EXPECTED_ACTION_DIM = 192
 EXPECTED_PER_DEVICE_BATCH_SIZE = 8
 EXPECTED_GLOBAL_BATCH_SIZE = 64
 EXPECTED_USE_BF16 = True
+EXPECTED_EGOVLA_ACTION_CONTRACT_ID = "egovla_observed_ee_step_future_hand_command_v3"
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 CHECKPOINT_NAME = re.compile(r"^epoch=(?P<epoch>[0-9]+)-step=(?P<step>[0-9]+)\.ckpt$")
 
@@ -123,6 +124,59 @@ def main() -> None:
     for required_data_file in (manifest_path, statistics_path):
         if not required_data_file.is_file() or required_data_file.stat().st_size == 0:
             raise FileNotFoundError(f"Prepared data file is missing: {required_data_file}")
+    with manifest_path.open(encoding="utf-8") as manifest_file:
+        manifest = json.load(manifest_file)
+    with statistics_path.open(encoding="utf-8") as statistics_file:
+        statistics = json.load(statistics_file)
+    manifest_representation = manifest.get("representation", "wuji20")
+    statistics_representation = statistics.get("representation", "wuji20")
+    if isinstance(statistics_representation, str) and "Wuji20" in statistics_representation:
+        statistics_representation = "wuji20"
+    if manifest_representation != args.representation:
+        raise ValueError(
+            f"Manifest representation {manifest_representation!r} does not match "
+            f"requested {args.representation!r}: {manifest_path}"
+        )
+    if statistics_representation != args.representation:
+        raise ValueError(
+            f"Statistics representation {statistics_representation!r} does not match "
+            f"requested {args.representation!r}: {statistics_path}"
+        )
+    action_contract_id = manifest.get("action_contract_id")
+    completion_path = None
+    checksums_path = None
+    if args.representation == "inspire12":
+        manifest_contract = action_contract_id
+        statistics_contract = statistics.get("action_contract_id")
+        if (
+            manifest_contract != EXPECTED_EGOVLA_ACTION_CONTRACT_ID
+            or statistics_contract != EXPECTED_EGOVLA_ACTION_CONTRACT_ID
+        ):
+            raise ValueError(
+                "EgoVLA action contract mismatch: "
+                f"manifest={manifest_contract!r}, statistics={statistics_contract!r}, "
+                f"expected={EXPECTED_EGOVLA_ACTION_CONTRACT_ID!r}"
+            )
+        completion_path = data_root / "CONVERSION_COMPLETE.json"
+        checksums_path = data_root / "SHA256SUMS"
+        if not completion_path.is_file() or completion_path.stat().st_size == 0:
+            raise FileNotFoundError(f"EgoVLA conversion marker is missing: {completion_path}")
+        if not checksums_path.is_file() or checksums_path.stat().st_size == 0:
+            raise FileNotFoundError(f"EgoVLA checksum manifest is missing: {checksums_path}")
+        with completion_path.open(encoding="utf-8") as completion_file:
+            completion = json.load(completion_file)
+        expected_completion = {
+            "action_contract_id": EXPECTED_EGOVLA_ACTION_CONTRACT_ID,
+            "manifest_sha256": sha256_file(manifest_path),
+            "statistics_sha256": sha256_file(statistics_path),
+            "checksums_sha256": sha256_file(checksums_path),
+        }
+        actual_completion = {key: completion.get(key) for key in expected_completion}
+        if actual_completion != expected_completion:
+            raise ValueError(
+                f"EgoVLA conversion marker mismatch: {actual_completion!r} "
+                f"!= {expected_completion!r}"
+            )
     pretrain_root = workspace_root / "pretrain_model" / "VITRA-VLA-3B"
     paligemma_root = workspace_root / "pretrain_model" / "paligemma2-3b-mix-224-local"
     config.update(
@@ -139,6 +193,13 @@ def main() -> None:
             "data_manifest_path": str(manifest_path),
             "data_manifest_sha256": sha256_file(manifest_path),
             "data_representation": args.representation,
+            "action_contract_id": action_contract_id,
+            "conversion_complete_path": str(completion_path) if completion_path else None,
+            "conversion_complete_sha256": (
+                sha256_file(completion_path) if completion_path else None
+            ),
+            "data_checksums_path": str(checksums_path) if checksums_path else None,
+            "data_checksums_sha256": sha256_file(checksums_path) if checksums_path else None,
             "wandb_project": os.environ.get("WANDB_PROJECT", config.get("wandb_project")),
             "wandb_entity": os.environ.get("WANDB_ENTITY", config.get("wandb_entity")),
             "hf_cache_dir": str(workspace_root / "pretrain_model" / "huggingface_cache"),

@@ -36,7 +36,7 @@ def _pose7(position: np.ndarray, euler_xyz: np.ndarray) -> np.ndarray:
     return np.concatenate([position, quat_xyzw[[3, 0, 1, 2]]]).astype(np.float32)
 
 
-class EgoVLANextObservedActionTest(unittest.TestCase):
+class EgoVLARobotActionContractTest(unittest.TestCase):
     FRAME_COUNT = 17
 
     def setUp(self) -> None:
@@ -46,7 +46,12 @@ class EgoVLANextObservedActionTest(unittest.TestCase):
         self.episode_path = self.root / "Open-Drawer" / "episode_0.hdf5"
         self.episode_path.parent.mkdir(parents=True)
         self._write_mapping()
-        self.observed_pose, self.qpos = self._write_episode()
+        (
+            self.observed_pose,
+            self.qpos,
+            self.controller_action,
+            self.controller_pose,
+        ) = self._write_episode()
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -71,7 +76,14 @@ class EgoVLANextObservedActionTest(unittest.TestCase):
         }
         self.mapping_path.write_text(json.dumps(mapping), encoding="utf-8")
 
-    def _write_episode(self) -> tuple[dict[str, np.ndarray], np.ndarray]:
+    def _write_episode(
+        self,
+    ) -> tuple[
+        dict[str, np.ndarray],
+        np.ndarray,
+        np.ndarray,
+        dict[str, np.ndarray],
+    ]:
         frame = np.arange(self.FRAME_COUNT, dtype=np.float64)
         observed_pose = {
             "left": np.stack(
@@ -104,9 +116,19 @@ class EgoVLANextObservedActionTest(unittest.TestCase):
             )
             qpos[:, indices] = values.astype(np.float32)
 
-        # Deliberately poison controller targets.  A next-observed-state label
-        # must be independent of both arrays.
-        controller_action = np.full_like(qpos, 123.0)
+        controller_action = np.zeros_like(qpos)
+        for side_index, side in enumerate(dataset.SIDES):
+            indices = list(dataset.HAND_QPOS_INDICES[side])
+            values = (
+                0.6
+                + 0.1 * side_index
+                + 0.02 * frame[:, None]
+                + 0.001 * np.arange(dataset.INSPIRE_HAND_DIM)[None, :]
+            )
+            controller_action[:, indices] = values.astype(np.float32)
+
+        # Deliberately poison controller EE targets. Wrist labels must still
+        # come only from consecutive recorded EE observations.
         controller_pose = {
             side: np.stack(
                 [
@@ -136,7 +158,7 @@ class EgoVLANextObservedActionTest(unittest.TestCase):
                 observations.create_dataset(
                     f"{side}_target_ee_pose", data=controller_pose[side]
                 )
-        return observed_pose, qpos
+        return observed_pose, qpos, controller_action, controller_pose
 
     def _dataset(self) -> dataset.EgoVLAInspireDatasetCore:
         return dataset.EgoVLAInspireDatasetCore(
@@ -147,7 +169,7 @@ class EgoVLANextObservedActionTest(unittest.TestCase):
             mapping_path=str(self.mapping_path),
         )
 
-    def test_sixteen_step_labels_decode_to_next_observed_trajectory(self) -> None:
+    def test_wrist_uses_observations_and_hand_uses_same_row_command(self) -> None:
         core = self._dataset()
         sample = core[0]
         np.testing.assert_array_equal(sample["action_mask"], np.ones((16, 2), dtype=bool))
@@ -167,13 +189,53 @@ class EgoVLANextObservedActionTest(unittest.TestCase):
             for side in dataset.SIDES:
                 actual = dataset.pose7_to_matrix(command[f"{side}_ee_pose"])
                 expected = dataset.pose7_to_matrix(self.observed_pose[side][step])
+                poisoned_target = dataset.pose7_to_matrix(
+                    self.controller_pose[side][step - 1]
+                )
                 np.testing.assert_allclose(actual, expected, atol=2e-6, rtol=0.0)
+                self.assertFalse(np.allclose(actual, poisoned_target))
                 np.testing.assert_allclose(
                     command[f"{side}_ee_joint_state"],
-                    dataset.unpack_inspire12(self.qpos[step], side),
+                    dataset.unpack_inspire12(self.controller_action[step - 1], side),
                     atol=0.0,
                     rtol=0.0,
                 )
+                self.assertFalse(
+                    np.array_equal(
+                        command[f"{side}_ee_joint_state"],
+                        dataset.unpack_inspire12(self.qpos[step], side),
+                    )
+                )
+
+    def test_controller_target_ee_pose_is_optional(self) -> None:
+        with h5py.File(self.episode_path, "r+") as handle:
+            del handle["observations/left_target_ee_pose"]
+            del handle["observations/right_target_ee_pose"]
+        metadata = dataset.validate_egovla_episode(self.episode_path)
+        self.assertEqual(metadata["source_length"], self.FRAME_COUNT)
+        sample = self._dataset()[0]
+        self.assertTrue(sample["action_mask"].all())
+
+    def test_statistics_require_the_same_action_contract(self) -> None:
+        statistics_path = self.root / "teledata_statistics.json"
+        metadata = {"representation": dataset.REPRESENTATION_INSPIRE12}
+        statistics_path.write_text(json.dumps(metadata), encoding="utf-8")
+        dimensions = {
+            f"{kind}_{side}_{moment}": np.zeros(dataset.NATIVE_HAND_DIM)
+            for kind in ("state", "action")
+            for side in dataset.SIDES
+            for moment in ("mean", "std")
+        }
+        with self.assertRaisesRegex(ValueError, "action contract"):
+            dataset._validate_statistics_contract(
+                str(statistics_path), dataset.REPRESENTATION_INSPIRE12, dimensions
+            )
+
+        metadata["action_contract_id"] = dataset.EGOVLA_ACTION_CONTRACT_ID
+        statistics_path.write_text(json.dumps(metadata), encoding="utf-8")
+        dataset._validate_statistics_contract(
+            str(statistics_path), dataset.REPRESENTATION_INSPIRE12, dimensions
+        )
 
     def test_terminal_and_out_of_range_rows_are_masked(self) -> None:
         core = self._dataset()

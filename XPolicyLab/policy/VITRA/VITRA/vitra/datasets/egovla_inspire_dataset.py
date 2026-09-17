@@ -4,7 +4,7 @@
 
     state  = absolute camera-space EEF [xyz, Euler_xyz] + absolute Inspire12
     action = observed step EEF delta [dxyz, Euler_xyz(dR)]
-             + next observed Inspire12
+             + same-row future Inspire12 execution command
 
 The dual-hand vector is 36-dimensional. It is normalized in this native space
 and only then sparsely injected into VITRA's human 192/212 layout with the
@@ -59,6 +59,7 @@ NATIVE_DUAL_DIM = 2 * NATIVE_HAND_DIM
 SIDES = ("left", "right")
 DEFAULT_MAPPING_PATH = Path(__file__).resolve().parents[3] / "mapping_inspire12_mano45.json"
 INSPIRE2MANO_CODEC_ID = "inspire12_mano45_xyz_sparse_v1"
+EGOVLA_ACTION_CONTRACT_ID = "egovla_observed_ee_step_future_hand_command_v3"
 _INSPIRE2MANO_DST = (2, 5, 11, 14, 20, 23, 29, 32, 37, 36, 40, 43)
 _INSPIRE2MANO_SIGNS = (1, 1, 1, 1, 1, 1, 1, 1, -1, 1, -1, -1)
 
@@ -90,8 +91,6 @@ QPOS_DIM = 50
 REQUIRED_DATASETS = (
     "action",
     "observations/qpos",
-    "observations/left_target_ee_pose",
-    "observations/right_target_ee_pose",
     "observations/images/main",
 )
 CURRENT_EE_KEYS = {
@@ -490,12 +489,12 @@ def _step_delta(current: np.ndarray, target: np.ndarray) -> np.ndarray:
     return np.concatenate([delta_position, delta_euler]).astype(np.float32)
 
 
-def _statistics_representation(statistics_path: str) -> Optional[str]:
+def _statistics_metadata(statistics_path: str) -> Mapping[str, Any]:
     with open(statistics_path, "r", encoding="utf-8") as handle:
-        value = json.load(handle).get("representation")
-    if value in SUPPORTED_REPRESENTATIONS:
-        return value
-    return None
+        value = json.load(handle)
+    if not isinstance(value, dict):
+        raise ValueError(f"Statistics metadata must be a JSON object: {statistics_path}")
+    return value
 
 
 def _validate_statistics_contract(
@@ -503,12 +502,20 @@ def _validate_statistics_contract(
     representation: str,
     statistics: Mapping[str, np.ndarray],
 ) -> None:
-    declared = _statistics_representation(statistics_path)
+    metadata = _statistics_metadata(statistics_path)
+    declared = metadata.get("representation")
     if declared is not None and declared != representation:
         raise ValueError(
             f"Statistics representation {declared!r} does not match requested {representation!r}: "
             f"{statistics_path}"
         )
+    if representation == REPRESENTATION_INSPIRE12:
+        action_contract_id = metadata.get("action_contract_id")
+        if action_contract_id != EGOVLA_ACTION_CONTRACT_ID:
+            raise ValueError(
+                f"Statistics action contract {action_contract_id!r} does not match "
+                f"{EGOVLA_ACTION_CONTRACT_ID!r}: {statistics_path}"
+            )
     state_dim, action_dim = representation_dimensions(representation)
     expected = {
         "state_left_mean": state_dim,
@@ -558,11 +565,8 @@ def validate_egovla_episode(path: Any) -> dict:
             raise ValueError(f"{path}: images/main must be (T,384,384,3), got {image.shape}")
         for side in SIDES:
             current_key = current_ee_key(handle, side)
-            target_key = f"observations/{side}_target_ee_pose"
             if handle[current_key].shape != (source_length, 7):
                 raise ValueError(f"{path}: {current_key} must be (T,7), got {handle[current_key].shape}")
-            if handle[target_key].shape != (source_length, 7):
-                raise ValueError(f"{path}: {target_key} must be (T,7), got {handle[target_key].shape}")
         return {
             "path": path,
             "length": source_length,
@@ -855,6 +859,7 @@ class EgoVLAInspireDatasetCore:
         sample_length = self.episode_lengths[episode_index]
         source_length = self.source_episode_lengths[episode_index]
         qpos = handle["observations/qpos"]
+        action = handle["action"]
         state_parts = []
         current_ee_keys = {side: current_ee_key(handle, side) for side in SIDES}
         for side in SIDES:
@@ -876,12 +881,11 @@ class EgoVLAInspireDatasetCore:
         action_list = np.zeros((len(action_indices), self.action_dual_dim), dtype=np.float32)
         action_mask = np.zeros((len(action_indices), 2), dtype=bool)
         for row, action_index in enumerate(action_indices.tolist()):
-            # VITRA's ``step`` contract is one realized transition per row:
-            # observed state[t] -> observed state[t+1].  EgoVLA's
-            # ``*_target_ee_pose[t]`` and ``action[t]`` are controller targets,
-            # not the realized next state, so they must not be used as step
-            # labels.  The terminal row has no t+1 observation and remains
-            # masked, as do ordinary out-of-window rows.
+            # Official robot fine-tuning uses a hybrid action contract: wrist
+            # motion comes from consecutive recorded EEF poses, while hand
+            # joints use the direct future execution command stored at the
+            # same source row. Controller target EE poses are not labels. The
+            # terminal row has no observed EEF[t+1], so it remains masked.
             if action_index < 0 or action_index >= source_length - 1:
                 continue
             for hand_index, side in enumerate(SIDES):
@@ -891,7 +895,7 @@ class EgoVLAInspireDatasetCore:
                 target_wrist = self._wrist_in_camera(
                     handle[current_ee_keys[side]][action_index + 1]
                 )
-                hand_target = unpack_inspire12(qpos[action_index + 1], side)
+                hand_target = unpack_inspire12(action[action_index], side)
                 action_part = np.concatenate(
                     [_step_delta(current_wrist, target_wrist), hand_target]
                 ).astype(np.float32)

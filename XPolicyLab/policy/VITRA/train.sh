@@ -175,19 +175,36 @@ if [[ ! -d "${data_root}/TeleData" ]] || [[ ! -s "${data_root}/teledata_statisti
   echo "Prepared TeleData/statistics are missing under ${data_root}; run process_data.sh first." >&2
   exit 1
 fi
+if [[ "${data_representation}" == "inspire12" ]]; then
+  if [[ ! -s "${data_root}/SHA256SUMS" ]]; then
+    echo "EgoVLA checksum manifest is missing: ${data_root}/SHA256SUMS" >&2
+    exit 1
+  fi
+  sha256sum -c "${data_root}/SHA256SUMS"
+fi
 python3 - "${data_root}" "${data_representation}" <<'PY'
+import hashlib
 import json
 import sys
 from pathlib import Path
 
 data_root = Path(sys.argv[1]).resolve()
 expected = sys.argv[2]
+expected_egovla_contract = "egovla_observed_ee_step_future_hand_command_v3"
 manifest_path = data_root / "spark0_manifest.json"
 statistics_path = data_root / "teledata_statistics.json"
 if not manifest_path.is_file():
     raise SystemExit(f"Prepared-data manifest is missing: {manifest_path}")
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 statistics = json.loads(statistics_path.read_text(encoding="utf-8"))
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 manifest_representation = manifest.get("representation", "wuji20")
 statistics_representation = statistics.get("representation", "wuji20")
 if isinstance(statistics_representation, str) and "Wuji20" in statistics_representation:
@@ -200,6 +217,31 @@ if statistics_representation != expected:
     raise SystemExit(
         f"Statistics representation mismatch: {statistics_representation!r} != {expected!r}"
     )
+if expected == "inspire12":
+    manifest_contract = manifest.get("action_contract_id")
+    statistics_contract = statistics.get("action_contract_id")
+    if manifest_contract != expected_egovla_contract or statistics_contract != expected_egovla_contract:
+        raise SystemExit(
+            "EgoVLA action contract mismatch: "
+            f"manifest={manifest_contract!r}, statistics={statistics_contract!r}, "
+            f"expected={expected_egovla_contract!r}"
+        )
+    completion_path = data_root / "CONVERSION_COMPLETE.json"
+    if not completion_path.is_file():
+        raise SystemExit(f"EgoVLA conversion marker is missing: {completion_path}")
+    completion = json.loads(completion_path.read_text(encoding="utf-8"))
+    expected_completion = {
+        "action_contract_id": expected_egovla_contract,
+        "manifest_sha256": sha256(manifest_path),
+        "statistics_sha256": sha256(statistics_path),
+        "checksums_sha256": sha256(data_root / "SHA256SUMS"),
+    }
+    actual_completion = {key: completion.get(key) for key in expected_completion}
+    if actual_completion != expected_completion:
+        raise SystemExit(
+            f"EgoVLA conversion marker mismatch: {actual_completion!r} "
+            f"!= {expected_completion!r}"
+        )
 expected_dims = {"mano45": (61, 51), "inspire12": (18, 18)}.get(expected, (26, 26))
 actual_dims = (
     statistics.get("state_dimension_per_hand", expected_dims[0]),
@@ -212,7 +254,8 @@ if manifest.get("episode_count", 0) <= 0 or manifest.get("frame_count", 0) <= 0:
 print(
     f"[VITRA] data contract representation={expected} "
     f"episodes={manifest['episode_count']} samples={manifest['frame_count']} "
-    f"state/action per hand={expected_dims[0]}/{expected_dims[1]}"
+    f"state/action per hand={expected_dims[0]}/{expected_dims[1]} "
+    f"action_contract={manifest.get('action_contract_id')}"
 )
 PY
 if [[ ! -s "${pretrain_path}" ]]; then

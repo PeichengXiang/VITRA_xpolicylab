@@ -62,6 +62,7 @@ def calculate(args: argparse.Namespace) -> dict:
     add_import_paths(args.xpolicylab_root)
     if args.representation == "inspire12":
         from vitra.datasets.egovla_inspire_dataset import (
+            EGOVLA_ACTION_CONTRACT_ID,
             EgoVLAInspireDatasetCore,
             representation_dimensions,
         )
@@ -137,7 +138,7 @@ def calculate(args: argparse.Namespace) -> dict:
             "per-hand root6 + local MANO Euler45 + betas10 state; "
             "root step-delta6 + next absolute local MANO Euler45 action"
             if args.representation == "mano45"
-            else "per-hand EEF6 + Inspire12 state; observed EEF step-delta6 + next observed Inspire12 action; normalize before sparse MANO injection"
+            else "per-hand EEF6 + Inspire12 state; observed EEF step-delta6 + direct future Inspire12 execution command action[t]; normalize before sparse MANO injection"
             if args.representation == "inspire12"
             else "per-hand EEF6 + Wuji20; normalize before sparse MANO injection"
         ),
@@ -147,6 +148,8 @@ def calculate(args: argparse.Namespace) -> dict:
         "num_samples": len(dataset),
         "num_episodes": len(dataset.episode_paths),
     }
+    if args.representation == "inspire12":
+        result["action_contract_id"] = EGOVLA_ACTION_CONTRACT_ID
     for hand, side in enumerate(sides):
         state_mean, state_std = state_moments[hand].result()
         action_mean, action_std = action_moments[hand].result()
