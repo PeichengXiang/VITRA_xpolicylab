@@ -504,6 +504,20 @@ class VLAFSDPStrategy(TrainingStrategy):
                     current_state = batch["current_state"]
                     fov = batch["fov"]
 
+                    # Move the collated CPU batch explicitly before entering
+                    # FSDP.  Relying on FSDP's implicit root-input copy is
+                    # unstable with torch 2.3 on H20 when the VLM and DiT
+                    # execute as nested FSDP units.
+                    device = torch.device("cuda", self.device_id)
+                    rgb = rgb.to(device, non_blocking=True)
+                    input_ids = input_ids.to(device, non_blocking=True)
+                    attention_mask = attention_mask.to(device, non_blocking=True)
+                    action_labels = action_labels.to(device, non_blocking=True)
+                    action_masks = action_masks.to(device, non_blocking=True)
+                    current_state_mask = current_state_mask.to(device, non_blocking=True)
+                    current_state = current_state.to(device, non_blocking=True)
+                    fov = fov.to(device, non_blocking=True)
+
                     prediction = self.vla(
                         rgb,
                         input_ids,
