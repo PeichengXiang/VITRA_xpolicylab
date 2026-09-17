@@ -38,9 +38,12 @@ from vitra.utils.overwatch import initialize_overwatch
 # Disable tokenizers parallelism to avoid deadlocks in multi-process data loading
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-# Enable TF32 for faster training on Ampere GPUs
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
+# H20 with the torch 2.3 stack can raise SIGFPE in the DiT linear path when
+# TF32 is enabled. Keep the safe default, while allowing explicit opt-in on
+# hardware/software combinations that have been validated with TF32.
+_allow_tf32 = os.getenv("VITRA_ALLOW_TF32", "0") == "1"
+torch.backends.cuda.matmul.allow_tf32 = _allow_tf32
+torch.backends.cudnn.allow_tf32 = _allow_tf32
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
