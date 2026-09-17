@@ -1,0 +1,87 @@
+policy_name: VITRA
+protocol: ws
+host: localhost
+port: 6000
+bench_name: null
+task_name: null
+ckpt_name: null
+env_cfg_type: null
+seed: null
+action_type: ee
+gpu_id: null
+eval_batch: true
+
+# Optional explicit paths. Relative paths are resolved from policy/VITRA.
+# If model_path is null, the standard XPolicyLab checkpoint run name is used.
+model_path: null
+model_config_path: null
+statistics_path: null
+statistics_sha256: null
+mapping_path: null
+
+# Inferred from the checkpoint's saved config when null. An explicit value is
+# a consistency assertion, not a way to reinterpret a checkpoint.
+data_representation: null
+
+# Required only for mano45 runtime retargeting. This must point at the
+# Spark-0 checkout containing tools/data_alignment/add_mano.py and
+# tools/data_alignment/mano_wuji_map.py.  Keep this explicit so a direct
+# policy-server launch has the same MANO45 codec root as the audited Web plan;
+# callers on another host must override it with their hash-verified checkout.
+mano_tools_root: /personal/zijian/Spark_0/Spark-0
+
+# Historical MANO45 runs remain geometric unless a saved run config or deploy
+# override explicitly selects linear. Linear mode requires both path and hash.
+mano_inverse_mode: null
+mano_linear_inverse_path: null
+mano_linear_inverse_sha256: null
+
+# Used by the historical geometric mode and by the safety fallback in linear
+# mode. An accepted linear prediction is returned directly without IK refine.
+mano_inverse_max_iterations: 12
+mano_inverse_timeout_s: 2.0
+
+# Optional EgoVLA H1-Inspire boundary adapter.  The checkpoint remains
+# MANO45/Wuji20 internally; these settings only govern the external 12-D hand
+# contract and must point to the hash-verified Spark-0 checkout.
+# Shared Spark-0 checkout used by the EgoVLA benchmark.  Deployments on a
+# different host must override this with the equivalent verified checkout.
+h1_retarget_root: /personal/zijian/Spark_0/Spark-0
+h1_retarget_solver: analytic
+h1_retarget_max_iterations: 35
+h1_retarget_tolerance_m: 0.03
+h1_inverse_max_rms_m: 0.08
+h1_mimic_tolerance_rad: 0.00002
+
+# Run-specific H1 inverse calibration.  This is an explicit fallback after
+# the geometric Wuji20->Inspire solver fails its unchanged 80 mm gate; it is
+# not enabled for non-H1/DexBench runs.  The sidecar binds the 0902 checkpoint,
+# statistics, manifest, source checkout, and current Wuji URDF by hash.
+h1_inverse_mode: linear_fallback
+# Explicit opt-in for the requested 50k EgoVLA rerun only. Other checkpoints
+# retain their current decoder unless an explicit path/environment overrides it.
+h1_paired12_by_checkpoint:
+  /personal/xiangpc/0813_Xpolicylab_bench/VITRA/XPolicyLab/policy/VITRA/checkpoints/egovla_humanoid_mano-20260902-tianji_marvin_wuji-ee-42/2026-09-02-egovla_humanoid_mano-20260902_TB64_B8_bf16True/checkpoints/epoch=6-step=50000.ckpt/weights.pt:
+    path: /personal/xiangpc/0813_Xpolicylab_bench/VITRA/XPolicyLab/policy/VITRA/artifacts/egovla_paired12_20260908/bounded/paired12_0908_v1_step50000.json
+    sha256: 5f05e4f2d4ab7e4a56a115e8f02a3c1633d2d2bb26a3e893c07317c96827e5d7
+h1_linear_inverse_path: /personal/xiangpc/0813_Xpolicylab_bench/VITRA/XPolicyLab/policy/VITRA/checkpoints/egovla_humanoid_mano-20260902-tianji_marvin_wuji-ee-42/2026-09-02-egovla_humanoid_mano-20260902_TB64_B8_bf16True/wuji20_to_inspire6_linear_0902_v1.json
+h1_linear_inverse_sha256: f838c5340d04ee5a174111bc31344d6acc9f4955125051a5a42087125251da7d
+
+# The EgoVLA H1 simulator's common bridge currently forwards decoded RGB and
+# state but not camera calibration.  VITRA loads this audited profile only for
+# env_cfg_type=ego_h1_inspire, and only when cam_head metadata is absent.
+# The simulator scope is explicit for the benchmark default.  model.py also
+# reads EVAL_ENV_TYPE: sim/debug permit this fallback, while real/real_world
+# always require runtime intrinsics+extrinsics even if this profile is present.
+# Runtime/profile overrides must retain the SHA-256 assertion.
+h1_camera_calibration_scope: simulator
+h1_camera_calibration_path: artifacts/ego_h1_inspire_main_camera_v1.json
+h1_camera_calibration_sha256: 50cb0135ffae63531e75d15adb791426d02789638ead7958567f1a0766170578
+
+# VITRA diffusion inference. The official model supports sample batch B=1.
+num_ddim_steps: 10
+cfg_scale: 5.0
+sample_times: 1
+execute_action_chunk: 16
+default_fov: [1.0, 0.8]
+prompt: null

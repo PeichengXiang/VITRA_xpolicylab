@@ -1,0 +1,83 @@
+{
+    "vla_name": "VITRA_Paligemma",
+    "task_name": "spark0",
+    "model": "vitra_paligemma2",
+    "fwd_pred_next_n": 16,
+    "seed": 42,
+    "batch_size": 8,
+    "total_batch_size": 64,
+    "num_workers": null,
+    "prefetch_factor": null,
+    "output_root": "__SET_BY_MAKE_TRAIN_CONFIG__",
+    "log_root": "__SET_BY_MAKE_TRAIN_CONFIG__",
+    "cache_root": "__SET_BY_MAKE_TRAIN_CONFIG__",
+    "pretrain_path": "__SET_BY_MAKE_TRAIN_CONFIG__",
+    "statistics_path": "__SET_BY_MAKE_TRAIN_CONFIG__",
+    "model_load_path": null,
+    "resume": false,
+    "wandb_project": "xpolicylab-vitra-spark0",
+    "wandb_entity": null,
+    "save_steps": 10000,
+    "epoch_save_interval": 0,
+    "use_bf16": true,
+    "use_fov": true,
+    "untied_cognition_token": true,
+    "use_state": "DiT",
+    "loss_type": "robot",
+    "train_setup": {
+        "freeze_option": "freeze_vision_encoder"
+    },
+    "state_encoder": {
+        "state_dim": 212
+    },
+    "action_model": {
+        "model_type": "DiT-B",
+        "token_size": 2304,
+        "action_dim": 192,
+        "hidden_size": 1024
+    },
+    "vlm": {
+        "type": "PaliGemmaForConditionalGeneration",
+        "name": "paligemma",
+        "pretrained_model_name_or_path": "__SET_BY_MAKE_TRAIN_CONFIG__",
+        "initialize_from_config": true
+    },
+    "trainer": {
+        "sharding_strategy": "shard-grad-op",
+        "strategy": "fsdp_paligemma_with_checkpointing",
+        "lr_scheduler_type": "backbone-freeze-warmup",
+        "learning_rate": 1e-5,
+        "gradient_clip_val": 1.0,
+        "weight_decay": 0.1,
+        "max_epochs": 100000,
+        "max_steps": 80000,
+        "reduce_in_full_precision": true,
+        "enable_mixed_precision_training": false,
+        "enable_gradient_checkpointing": true,
+        "action_model_learning_rate": 1e-5,
+        "llm_freeze_step": 0,
+        "warmup_ratio": null,
+        "optimizer_betas": [
+            0.9,
+            0.95
+        ]
+    },
+    "train_dataset": {
+        "data_root_dir": "__SET_BY_MAKE_TRAIN_CONFIG__",
+        "augmentation": true,
+        "set_none_ratio": 0.0,
+        "data_mix": "robo_dataset",
+        "num_workers": 16,
+        "prefetch_factor": null,
+        "flip_augmentation": 1.0,
+        "action_type": "angle",
+        "use_rel": false,
+        "rel_mode": "step",
+        "clip_len": null,
+        "normalization": true,
+        "state_mask_prob": 0.1,
+        "target_image_height": 224,
+        "representation": "wuji20"
+    },
+    "repeated_diffusion_steps": 2
+}

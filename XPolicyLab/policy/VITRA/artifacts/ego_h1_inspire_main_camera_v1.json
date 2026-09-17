@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "profile": "egovla_ego_h1_inspire_main_camera_v1",
+  "env_cfg_type": "ego_h1_inspire",
+  "camera": "cam_head",
+  "color_order": "RGB",
+  "source": {
+    "name": "EgoVLA Humanoid BaseEnvCfg.main_camera",
+    "resolution": {
+      "width": 1280,
+      "height": 720
+    },
+    "resize_mode": "stretch",
+    "allowed_runtime_sizes": [
+      {
+        "width": 1280,
+        "height": 720
+      },
+      {
+        "width": 384,
+        "height": 384
+      }
+    ]
+  },
+  "intrinsics": {
+    "matrix": [
+      [
+        488.6661894535911,
+        0.0,
+        640.0
+      ],
+      [
+        0.0,
+        488.6661894535911,
+        360.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "scale_rule": "K_out = diag(width/1280, height/720, 1) @ K_source"
+  },
+  "extrinsics": {
+    "frame": "camera_to_env",
+    "axes": "x_right_y_up_z_back",
+    "order": "x,y,z,qw,qx,qy,qz",
+    "pose7": [
+      0.09,
+      0.0,
+      1.7,
+      0.6644630243886747,
+      0.24184476264797525,
+      -0.24184476264797525,
+      -0.6644630243886748
+    ]
+  },
+  "provenance": {
+    "base_env_config": "Ego_Humanoid_Manipulation_Benchmark/source/extensions/humanoid.tasks/humanoid/tasks/base_env/base_env.py",
+    "hdf5_source": "egovla_humanoid_sim_processed/vision/cam_head/{extrinsics,intrinsics}",
+    "wrapper_contract": "egovla_humanoid_external_link_v1",
+    "numeric_transform": "none; source camera_to_world values are relabeled camera_to_env by the wrapper"
+  }
+}

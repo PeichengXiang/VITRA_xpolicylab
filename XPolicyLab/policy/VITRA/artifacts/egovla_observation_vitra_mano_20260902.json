@@ -1,0 +1,28 @@
+{
+  "camera_policy": "VITRA EgoVLA MANO45 trained on cam_head only; stretch Isaac 1280x720 RGB to the native 384x384 training size. Wrist views were not in the HDF5 loader.",
+  "camera_shapes": {
+    "cam_head": [384, 384],
+    "cam_left_wrist": [384, 384],
+    "cam_right_wrist": [384, 384]
+  },
+  "color_order": "RGB",
+  "schema": "egovla-observation-profile-v1",
+  "source": {
+    "dataset": "/personal/xiangpc/0813_Xpolicylab_bench/VITRA/data/egovla_humanoid_sim_mano_20260902",
+    "vision_policy": "native_384x384_spark_native_jpeg_no_resize"
+  },
+  "task_camera_masks": {
+    "Humanoid-Close-Drawer-v0": [true, false, false],
+    "Humanoid-Flip-Mug-v0": [true, false, false],
+    "Humanoid-Insert-And-Unload-Cans-v0": [true, false, false],
+    "Humanoid-Insert-Cans-v0": [true, false, false],
+    "Humanoid-Open-Drawer-v0": [true, false, false],
+    "Humanoid-Open-Laptop-v0": [true, false, false],
+    "Humanoid-Pour-Balls-v0": [true, false, false],
+    "Humanoid-Push-Box-v0": [true, false, false],
+    "Humanoid-Sort-Cans-v0": [true, false, false],
+    "Humanoid-Stack-Can-Into-Drawer-v0": [true, false, false],
+    "Humanoid-Stack-Can-v0": [true, false, false],
+    "Humanoid-Unload-Cans-v0": [true, false, false]
+  }
+}

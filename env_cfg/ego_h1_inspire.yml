@@ -1,0 +1,4 @@
+# EgoVLA H1 Inspire robot contract used by the VITRA external adapter.
+config:
+  robot: ego_h1_inspire
+  sim: egovla_single

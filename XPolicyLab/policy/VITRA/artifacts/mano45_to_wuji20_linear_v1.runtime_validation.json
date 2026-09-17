@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "validation_kind": "xpolicylab_vitra_mano45_linear_inverse_exact_runtime",
+  "validated_at": "2026-08-28",
+  "validator": "scripts/validate_mano45_linear_inverse_runtime.py",
+  "artifact_sha256": "f196701addfcddc7bfac70a6caf722b237a398af104aa6a15993a60ccea93940",
+  "dataset": "/personal/zijian/Spark_0/data/spark0_bench_mano",
+  "episode_split": "90-99",
+  "frame_stride": 8,
+  "max_frames_per_episode": 0,
+  "geometry_limit_m": 0.015,
+  "urdf_sha256": {
+    "left": "8eafbe7a3bf8129628a53abf5e7c3f4019dc99497fcdcafac52eca9e6b939156",
+    "right": "35e0018a74dd717c25f34999260aa8620309adb2deedd99f95b670222411a0b4"
+  },
+  "sides": {
+    "left": {
+      "attempted": 1879,
+      "linear_gate_accept_fraction": 1.0,
+      "full_runtime_accept_fraction": 1.0,
+      "urdf_clipped": 14,
+      "fallback_reasons": {},
+      "geometry_rms_mm": {
+        "count": 1879,
+        "mean": 7.312168994976141,
+        "p50": 8.266418140742273,
+        "p95": 10.007588213187862,
+        "p99": 10.451564830658295,
+        "max": 10.63915421607033
+      },
+      "link7_rotation_error_deg": {
+        "count": 1879,
+        "mean": 0.09554914290077256,
+        "p50": 0.04312432872074755,
+        "p95": 0.3504786059862886,
+        "p99": 0.7683553380304579,
+        "max": 1.6930275082790058
+      },
+      "link7_position_error_m": {
+        "count": 1879,
+        "mean": 2.4930840608304654e-07,
+        "p50": 2.1962843599344093e-07,
+        "p95": 3.730378691502906e-07,
+        "p99": 4.3663338823379694e-07,
+        "max": 5.570882654400178e-07
+      },
+      "accepted_q_abs_rad": {
+        "count": 37580,
+        "mean": 0.0062634131765371,
+        "p50": 0.00222199814437753,
+        "p95": 0.025766761564724055,
+        "p99": 0.05556550671698226,
+        "max": 0.18506288361889844
+      }
+    },
+    "right": {
+      "attempted": 1879,
+      "linear_gate_accept_fraction": 0.9973390101117616,
+      "full_runtime_accept_fraction": 0.9973390101117616,
+      "urdf_clipped": 50,
+      "fallback_reasons": {
+        "right MANO pose is outside the calibrated inverse domain": 1,
+        "right linear inverse materially exceeds Wuji URDF limits": 4
+      },
+      "geometry_rms_mm": {
+        "count": 1874,
+        "mean": 7.433411642391843,
+        "p50": 8.307036399309457,
+        "p95": 10.433329621033401,
+        "p99": 11.097299679566238,
+        "max": 11.56812580845055
+      },
+      "link7_rotation_error_deg": {
+        "count": 1874,
+        "mean": 0.1255598242852329,
+        "p50": 0.0585247810837938,
+        "p95": 0.42842843311269735,
+        "p99": 1.1017074813832743,
+        "max": 2.51938155807056
+      },
+      "link7_position_error_m": {
+        "count": 1874,
+        "mean": 1.7794767199180072e-07,
+        "p50": 1.8111648674065716e-07,
+        "p95": 2.8176300342470247e-07,
+        "p99": 3.521919248244036e-07,
+        "max": 4.901568940226124e-07
+      },
+      "accepted_q_abs_rad": {
+        "count": 37480,
+        "mean": 0.007833760544309731,
+        "p50": 0.0027540508987547938,
+        "p95": 0.03292956954954608,
+        "p99": 0.07410025863886599,
+        "max": 0.2815318295567729
+      }
+    }
+  }
+}
